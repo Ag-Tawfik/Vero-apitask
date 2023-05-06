@@ -67,4 +67,54 @@ class ConstructionStages
 		]);
 		return $this->getSingle($this->db->lastInsertId());
 	}
+
+	public function update(ConstructionStagesUpdate $data, int $id)
+	{
+		$inputValidation = $data->validateInput($data);
+		if (!empty($inputValidation)) {
+			return $inputValidation;
+		}
+
+		$stmt = $this->db->prepare("
+			UPDATE construction_stages
+			SET
+				name = :name,
+				start_date = :start_date,
+				end_date = :end_date,
+				duration = :duration,
+				durationUnit = :durationUnit,
+				color = :color,
+				externalId = :externalId,
+				status = :status
+			WHERE ID = :id
+		");
+		$stmt->execute([
+			'id' => $id,
+			'name' => $data->name,
+			'start_date' => $data->startDate,
+			'end_date' => $data->endDate,
+			'duration' => $data->duration,
+			'durationUnit' => $data->durationUnit,
+			'color' => $data->color,
+			'externalId' => $data->externalId,
+			'status' => $data->status,
+		]);
+		return $this->getSingle($id);
+	}
+
+	public function delete(int $id)
+	{
+		$stmt = $this->db->prepare("
+			UPDATE construction_stages
+			SET
+				status = 'DELETED'
+			WHERE ID = :id
+		");
+
+		$stmt->execute([
+			'id' => $id
+		]);
+
+		return 'Record deleted successfully';
+	}
 }
