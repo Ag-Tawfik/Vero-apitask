@@ -48,8 +48,13 @@ class ConstructionStages
 		return $stmt->fetchAll(PDO::FETCH_ASSOC);
 	}
 
-	public function post(ConstructionStagesCreate $data)
+	public function post(ConstructionStagesCreate $data): array
 	{
+		$errorMsg = $data->validateData($data);
+		if ($errorMsg) {
+			return $errorMsg;
+		}
+
 		$stmt = $this->db->prepare("
 			INSERT INTO construction_stages
 			    (name, start_date, end_date, duration, durationUnit, color, externalId, status)
@@ -68,37 +73,55 @@ class ConstructionStages
 		return $this->getSingle($this->db->lastInsertId());
 	}
 
-	public function update(ConstructionStagesUpdate $data, int $id)
+	public function update(ConstructionStagesUpdate $data, int $id): array
 	{
-		$inputValidation = $data->validateInput($data);
-		if (!empty($inputValidation)) {
-			return $inputValidation;
+		$constructionStage = $this->getSingle($id);
+		if (!$constructionStage) {
+			return ['error' => ['code' => 404, 'message' => 'Record not found']];
+		}
+
+		if (empty($data)) {
+			return ['error' => ['code' => 400, 'message' => 'No properties to update']];
+		}
+
+		$errorMsg = $data->validateData($data);
+		if ($errorMsg) {
+			return $errorMsg;
+		}
+
+		$startDate = $data->startDate ?? $constructionStage['startDate'];
+		$endDate = $data->endDate ?? $constructionStage['endDate'];
+
+		if ($startDate && $endDate && $endDate < $startDate) {
+			return ['error' => ['code' => 422, 'message' => 'End date must be after start date']];
 		}
 
 		$stmt = $this->db->prepare("
-			UPDATE construction_stages
-			SET
-				name = :name,
-				start_date = :start_date,
-				end_date = :end_date,
-				duration = :duration,
-				durationUnit = :durationUnit,
-				color = :color,
-				externalId = :externalId,
-				status = :status
-			WHERE ID = :id
-		");
+        UPDATE construction_stages
+        SET
+            name = :name,
+            start_date = :start_date,
+            end_date = :end_date,
+            duration = :duration,
+            durationUnit = :durationUnit,
+            color = :color,
+            externalId = :externalId,
+            status = :status
+        WHERE ID = :id
+    ");
+
 		$stmt->execute([
 			'id' => $id,
-			'name' => $data->name,
-			'start_date' => $data->startDate,
-			'end_date' => $data->endDate,
+			'name' => $data->name ?? $constructionStage[0]['name'],
+			'start_date' => $startDate,
+			'end_date' => $endDate,
 			'duration' => $data->duration,
 			'durationUnit' => $data->durationUnit,
 			'color' => $data->color,
 			'externalId' => $data->externalId,
 			'status' => $data->status,
 		]);
+
 		return $this->getSingle($id);
 	}
 
@@ -115,6 +138,6 @@ class ConstructionStages
 			'id' => $id
 		]);
 
-		return 'Record deleted successfully';
+		return ['success' => ['code' => 204, 'message' => 'Record deleted successfully']];
 	}
 }
