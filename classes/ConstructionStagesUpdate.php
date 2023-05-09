@@ -27,7 +27,7 @@ class ConstructionStagesUpdate
         }
     }
 
-    public function validateData()
+    public function validateData(): array
     {
         $errors = [];
 

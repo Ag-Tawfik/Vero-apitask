@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta content="width=device-width, initial-scale=1.0" name="viewport">
+    <meta content="ie=edge" http-equiv="X-UA-Compatible">
+    <script src="https://unpkg.com/swagger-ui-dist@3.30.0/swagger-ui-standalone-preset.js"></script>
+    <script src="https://unpkg.com/swagger-ui-dist@3.30.0/swagger-ui-bundle.js"></script>
+    <link href="https://unpkg.com/swagger-ui-dist@3.30.0/swagger-ui.css" rel="stylesheet"/>
+    <title>API Documentation</title>
+</head>
+
+<body>
+<div class="container-fluid content3">
+    </br>
+    <div class="row">
+        <div id="swagger-ui"></div>
+    </div>
+</div>
+<script>
+    window.onload = function () {
+        SwaggerUIBundle({
+            url: "swagger.yml",
+            dom_id: "#swagger-ui",
+            docExpansion: "none",
+            deepLinking: true,
+            accept: "application/vnd.api+json",
+            presets: [
+                SwaggerUIBundle.presets.apis,
+                SwaggerUIStandalonePreset
+            ],
+            layout: "BaseLayout"
+        });
+    };
+</script>
+</body>
+
+</html>

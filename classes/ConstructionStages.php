@@ -51,6 +51,7 @@ class ConstructionStages
 	public function post(ConstructionStagesCreate $data): array
 	{
 		$errorMsg = $data->validateData($data);
+
 		if ($errorMsg) {
 			return $errorMsg;
 		}
@@ -76,12 +77,9 @@ class ConstructionStages
 	public function update(ConstructionStagesUpdate $data, int $id): array
 	{
 		$constructionStage = $this->getSingle($id);
+
 		if (!$constructionStage) {
 			return ['error' => ['code' => 404, 'message' => 'Record not found']];
-		}
-
-		if (empty($data)) {
-			return ['error' => ['code' => 400, 'message' => 'No properties to update']];
 		}
 
 		$errorMsg = $data->validateData($data);
@@ -125,7 +123,7 @@ class ConstructionStages
 		return $this->getSingle($id);
 	}
 
-	public function delete(int $id)
+	public function delete(int $id): array
 	{
 		$stmt = $this->db->prepare("
 			UPDATE construction_stages

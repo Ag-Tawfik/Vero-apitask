@@ -1,0 +1,182 @@
+openapi: 3.0.2
+info:
+  title: API Documentation
+  version: 0.1.0
+paths:
+  /constructionStages:
+    get:
+      summary: Get All Construction Stages
+      tags:
+        - Construction Stage
+      responses:
+        "200":
+          description: "All Construction Stages"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        name:
+                          type: string
+                        startDate:
+                          type: string
+                        endDate:
+                          type: string
+                        duration:
+                          type: integer
+                        durationUnit:
+                          type: string
+                        color:
+                          type: string
+                        externalId:
+                          type: string
+                        status:
+                          type: string
+    post:
+      summary: Create Construction Stage
+      responses:
+        "201":
+          description: Construction Stage Created
+      tags:
+        - Construction Stage
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                  example: "Stage 1"
+                startDate:
+                  type: string
+                  example: "2021-05-01T00:00:00Z"
+                endDate:
+                  type: string
+                  example: "2021-05-01T00:00:00Z"
+                durationUnit:
+                  type: string
+                  description: "DAYS, WEEKS, HOURS"
+                color:
+                  type: string
+                  example: "#000000"
+                  description: "Must be in HEX format"
+                externalId:
+                  type: string
+                  example: "DS-2023"
+                status:
+                  type: string
+                  description: "NEW, PLANNED"
+              required:
+                - name
+                - startDate
+            examples:
+              "0":
+                value: |-
+                  {
+                      "name": "Stage 1",
+                      "status": "NEW",
+                      "durationUnit": "HOURS",
+                      "externalId": "QS-8974",
+                      "startDate": "2021-05-01T00:00:00Z",
+                      "endDate": "2021-06-01T00:00:00Z",
+                      "color": "#FF0500"
+                  }
+  /constructionStages/{constructionStage}:
+    parameters:
+      - schema:
+          type: integer
+        name: constructionStage
+        in: path
+        required: true
+    patch:
+      summary: Update Construction Stage By ID
+      responses:
+        "200":
+          description: Construction Stage Updated
+      tags:
+        - Construction Stage
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                  example: "Stage 1"
+                startDate:
+                  type: string
+                  example: "2021-05-01T00:00:00Z"
+                endDate:
+                  type: string
+                  example: "2021-05-01T00:00:00Z"
+                durationUnit:
+                  type: string
+                  description: "DAYS, WEEKS, HOURS"
+                color:
+                  type: string
+                  example: "#000000"
+                  description: "Must be in HEX format"
+                externalId:
+                  type: string
+                  example: "DS-2023"
+                status:
+                  type: string
+                  description: "NEW, PLANNED"
+              required:
+                - name
+                - startDate
+            examples:
+              "0":
+                value: |-
+                  {
+                      "name": "Stage 1",
+                      "status": "NEW",
+                      "durationUnit": "HOURS",
+                      "externalId": "QS-8974",
+                      "startDate": "2021-05-01T00:00:00Z",
+                      "endDate": "2021-06-01T00:00:00Z",
+                      "color": "#FF0500"
+                  }
+    get:
+      summary: Get Construction Stage By ID
+      tags:
+        - Construction Stage
+      responses:
+        "200":
+          description: "Construction Stage"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  name:
+                    type: string
+                  startDate:
+                    type: string
+                  endDate:
+                    type: string
+                  durationUnit:
+                    type: string
+                  color:
+                    type: string
+                  externalId:
+                    type: string
+                  status:
+                    type: string
+    delete:
+      summary: Delete Construction Stage By ID
+      tags:
+        - Construction Stage
+      responses:
+        "204":
+          description: "Record deleted successfully"
+tags:
+  - name: Construction Stage
+    description: endpoints number 1

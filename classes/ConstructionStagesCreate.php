@@ -27,7 +27,7 @@ class ConstructionStagesCreate
 		}
 	}
 
-	public function validateData()
+	public function validateData(): array
 	{
 		$errors = [];
 
