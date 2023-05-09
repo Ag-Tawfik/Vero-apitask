@@ -47,11 +47,26 @@ class ConstructionStagesCreate
 		}
 
 		if ($this->endDate) {
-			$endDateDateTime = \DateTime::createFromFormat(\DateTime::ATOM, $this->endDate);
-			if (!$endDateDateTime) {
+			$endDate = \DateTime::createFromFormat(\DateTime::ATOM, $this->endDate);
+			if (!$endDate) {
 				$errors[] = ['error' => ['code' => 422, 'message' => 'End date is not in the correct format']];
-			} elseif ($endDateDateTime < \DateTime::createFromFormat(\DateTime::ATOM, $this->startDate)) {
+			} elseif ($endDate < \DateTime::createFromFormat(\DateTime::ATOM, $this->startDate)) {
 				$errors[] = ['error' => ['code' => 422, 'message' => 'End date must be after start date']];
+			}
+		}
+
+		if ($startDate && $endDate && $endDate !== null) {
+			$diff = $startDate->diff($endDate);
+			switch ($this->durationUnit) {
+				case 'HOURS':
+					$this->duration = $diff->h + ($diff->days * 24);
+					break;
+				case 'DAYS':
+					$this->duration = $diff->days;
+					break;
+				case 'WEEKS':
+					$this->duration = round($diff->days / 7);
+					break;
 			}
 		}
 
@@ -69,23 +84,6 @@ class ConstructionStagesCreate
 
 		if ($this->status && !in_array($this->status, ['NEW', 'PLANNED', 'DELETED'])) {
 			$errors[] = ['error' => ['code' => 422, 'message' => 'Status is not valid']];
-		}
-
-		if (isset($this->startDate) && isset($this->endDate) && $this->endDate !== null) {
-			$start_date = DateTime::createFromFormat(DateTime::ATOM, $this->startDate);
-			$end_date = DateTime::createFromFormat(DateTime::ATOM, $this->endDate);
-			$diff = $start_date->diff($end_date);
-			switch ($this->durationUnit) {
-				case 'HOURS':
-					$this->duration = $diff->h + ($diff->days * 24);
-					break;
-				case 'DAYS':
-					$this->duration = $diff->days;
-					break;
-				case 'WEEKS':
-					$this->duration = floor($diff->days / 7);
-					break;
-			}
 		}
 
 		return $errors;

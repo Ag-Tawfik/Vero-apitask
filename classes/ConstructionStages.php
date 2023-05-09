@@ -87,8 +87,8 @@ class ConstructionStages
 			return $errorMsg;
 		}
 
-		$startDate = $data->startDate ?? $constructionStage['startDate'];
-		$endDate = $data->endDate ?? $constructionStage['endDate'];
+		$startDate = $data->startDate ?? $constructionStage[0]['startDate'];
+		$endDate = $data->endDate ?? $constructionStage[0]['endDate'];
 
 		if ($startDate && $endDate && $endDate < $startDate) {
 			return ['error' => ['code' => 422, 'message' => 'End date must be after start date']];
@@ -113,7 +113,7 @@ class ConstructionStages
 			'name' => $data->name ?? $constructionStage[0]['name'],
 			'start_date' => $startDate,
 			'end_date' => $endDate,
-			'duration' => $data->duration,
+			'duration' => $data->calculateDuration($startDate, $endDate),
 			'durationUnit' => $data->durationUnit,
 			'color' => $data->color,
 			'externalId' => $data->externalId,

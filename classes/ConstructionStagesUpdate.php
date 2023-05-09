@@ -40,6 +40,11 @@ class ConstructionStagesUpdate
             $errors[] = ['error' => ['code' => 422, 'message' => 'Start date is not in the correct format']];
         }
 
+        $endDate = \DateTime::createFromFormat(\DateTime::ATOM, $this->endDate);
+        if (!$endDate && !empty($this->endDate)) {
+            $errors[] = ['error' => ['code' => 422, 'message' => 'Start date is not in the correct format']];
+        }
+
         if ($this->durationUnit && !in_array($this->durationUnit, ['HOURS', 'DAYS', 'WEEKS'])) {
             $errors[] = ['error' => ['code' => 422, 'message' => 'Duration unit is not valid']];
         }
@@ -56,23 +61,26 @@ class ConstructionStagesUpdate
             $errors[] = ['error' => ['code' => 422, 'message' => 'Status is not valid']];
         }
 
-        if (isset($this->startDate) && isset($this->endDate) && $this->endDate !== null) {
-            $start_date = DateTime::createFromFormat(DateTime::ATOM, $this->startDate);
-            $end_date = DateTime::createFromFormat(DateTime::ATOM, $this->endDate);
-            $diff = $start_date->diff($end_date);
-            switch ($this->durationUnit) {
-                case 'HOURS':
-                    $this->duration = $diff->h + ($diff->days * 24);
-                    break;
-                case 'DAYS':
-                    $this->duration = $diff->days;
-                    break;
-                case 'WEEKS':
-                    $this->duration = floor($diff->days / 7);
-                    break;
-            }
-        }
-
         return $errors;
+    }
+
+    public function calculateDuration($startDate, $endDate)
+    {
+        if ($startDate && $endDate && $endDate !== null) {
+			$diff = (new DateTime($startDate))->diff(new DateTime($endDate));
+			switch ($this->durationUnit) {
+				case 'HOURS':
+					$duration = $diff->h + ($diff->days * 24);
+					break;
+				case 'DAYS':
+					$duration = $diff->days;
+					break;
+				case 'WEEKS':
+					$duration = round($diff->days / 7);
+					break;
+			}
+            $this->duration = $duration;
+            return $duration;
+		}
     }
 }
