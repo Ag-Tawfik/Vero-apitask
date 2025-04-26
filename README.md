@@ -22,6 +22,83 @@ There is a basic routing in `index.php` which supports `GET` and `POST` calls in
 
 The API serves data and accepts payload only in JSON format.
 
+## Running the Project
+
+### Requirements
+- PHP 7.4 or higher
+- SQLite extension for PHP
+- JSON extension for PHP
+
+### Setup
+1. Clone the repository:
+   ```bash
+   git clone <repository-url>
+   cd <repository-name>
+   ```
+
+2. Run the setup script to initialize the database and generate documentation:
+   ```bash
+   php setup.php
+   ```
+
+3. Start the PHP development server:
+   ```bash
+   php -S localhost:8000
+   ```
+
+4. The API will be available at `http://localhost:8000`
+
+### Testing the API
+You can test the API using curl or any API client like Postman. Here are some example requests:
+
+1. Get all construction stages:
+   ```bash
+   curl http://localhost:8000/constructionStages
+   ```
+
+2. Get a specific construction stage:
+   ```bash
+   curl http://localhost:8000/constructionStages/1
+   ```
+
+3. Create a new construction stage:
+   ```bash
+   curl -X POST http://localhost:8000/constructionStages \
+     -H "Content-Type: application/json" \
+     -d '{
+       "name": "Test Stage",
+       "startDate": "2024-01-01T00:00:00Z",
+       "endDate": "2024-01-31T00:00:00Z",
+       "durationUnit": "DAYS",
+       "color": "#FF0000",
+       "externalId": "TEST123",
+       "status": "NEW"
+     }'
+   ```
+
+4. Update a construction stage:
+   ```bash
+   curl -X PATCH http://localhost:8000/constructionStages/1 \
+     -H "Content-Type: application/json" \
+     -d '{
+       "name": "Updated Stage",
+       "status": "PLANNED"
+     }'
+   ```
+
+5. Delete a construction stage:
+   ```bash
+   curl -X DELETE http://localhost:8000/constructionStages/1
+   ```
+
+### API Documentation
+The API documentation is automatically generated in `docs/api.md`. You can view it using any markdown viewer or convert it to HTML.
+
+To regenerate the documentation:
+```bash
+php generate-docs.php
+```
+
 ## Task 1:
 Add a new API call `PATCH constructionStages/{id}` which to allow the API users to edit an arbitrary field of a selected (by id) construction stage. The API should touch only the fields which are sent by the user. Add validation which to ensure that if `status` field is sent it is either `NEW`, `PLANNED` or `DELETED` and throw a proper error if it is not.
 
@@ -53,4 +130,19 @@ Add a nice phpDoc to every method you create!
 
 ## Bonus task:
 Add a system which generates a documentation out of your API!
+
+## API Documentation
+The API documentation can be generated using the following command:
+```bash
+php generate-docs.php
+```
+
+This will create a markdown file (`docs/api.md`) containing comprehensive documentation of all API endpoints, including:
+- Available endpoints and their methods
+- Request and response formats
+- Validation rules
+- Error responses
+- Usage notes
+
+The documentation is automatically generated from the codebase and includes examples of requests and responses.
 
