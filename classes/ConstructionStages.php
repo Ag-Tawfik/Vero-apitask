@@ -1,141 +1,225 @@
 <?php
 
+/**
+ * Class ConstructionStages
+ * Handles all operations related to construction stages
+ */
 class ConstructionStages
 {
-	private $db;
+	private PDO $db;
 
+	/**
+	 * Constructor
+	 */
 	public function __construct()
 	{
 		$this->db = Api::getDb();
 	}
 
-	public function getAll()
+	/**
+	 * Get all construction stages
+	 * @return array
+	 */
+	public function getAll(): array
 	{
-		$stmt = $this->db->prepare("
-			SELECT
-				ID as id,
-				name, 
-				strftime('%Y-%m-%dT%H:%M:%SZ', start_date) as startDate,
-				strftime('%Y-%m-%dT%H:%M:%SZ', end_date) as endDate,
-				duration,
-				durationUnit,
-				color,
-				externalId,
-				status
-			FROM construction_stages
-		");
-		$stmt->execute();
-		return $stmt->fetchAll(PDO::FETCH_ASSOC);
+		try {
+			$stmt = $this->db->query("
+				SELECT
+					ID as id,
+					name,
+					strftime('%Y-%m-%dT%H:%M:%SZ', start_date) as startDate,
+					strftime('%Y-%m-%dT%H:%M:%SZ', end_date) as endDate,
+					duration,
+					durationUnit,
+					color,
+					externalId,
+					status
+				FROM construction_stages
+				WHERE status != 'DELETED'
+				ORDER BY start_date DESC
+			");
+			return $stmt->fetchAll(PDO::FETCH_ASSOC);
+		} catch (Exception $e) {
+			throw new Exception('Failed to fetch construction stages: ' . $e->getMessage());
+		}
 	}
 
-	public function getSingle($id)
+	/**
+	 * Get a single construction stage by ID
+	 * @param int $id
+	 * @return array
+	 */
+	public function getSingle(int $id): array
 	{
-		$stmt = $this->db->prepare("
-			SELECT
-				ID as id,
-				name, 
-				strftime('%Y-%m-%dT%H:%M:%SZ', start_date) as startDate,
-				strftime('%Y-%m-%dT%H:%M:%SZ', end_date) as endDate,
-				duration,
-				durationUnit,
-				color,
-				externalId,
-				status
-			FROM construction_stages
-			WHERE ID = :id
-		");
-		$stmt->execute(['id' => $id]);
-		return $stmt->fetchAll(PDO::FETCH_ASSOC);
+		try {
+			$stmt = $this->db->prepare("
+				SELECT
+					ID as id,
+					name,
+					strftime('%Y-%m-%dT%H:%M:%SZ', start_date) as startDate,
+					strftime('%Y-%m-%dT%H:%M:%SZ', end_date) as endDate,
+					duration,
+					durationUnit,
+					color,
+					externalId,
+					status
+				FROM construction_stages
+				WHERE ID = :id AND status != 'DELETED'
+			");
+			$stmt->execute(['id' => $id]);
+			$stage = $stmt->fetch(PDO::FETCH_ASSOC);
+
+			if (!$stage) {
+				throw new Exception('Construction stage not found', 404);
+			}
+
+			return $stage;
+		} catch (Exception $e) {
+			throw new Exception('Failed to fetch construction stage: ' . $e->getMessage());
+		}
 	}
 
+	/**
+	 * Create a new construction stage
+	 * @param ConstructionStagesCreate $data
+	 * @return array
+	 */
 	public function post(ConstructionStagesCreate $data): array
 	{
-		$errorMsg = $data->validateData($data);
+		try {
+			$errors = $data->validateData();
+			if (!empty($errors)) {
+				return [
+					'error' => [
+						'code' => 400,
+						'message' => 'Validation failed',
+						'errors' => $errors
+					]
+				];
+			}
 
-		if ($errorMsg) {
-			return $errorMsg;
-		}
+			$stageData = $data->toArray();
+			$duration = $data->calculateDuration();
+			if ($duration !== null) {
+				$stageData['duration'] = $duration;
+			}
 
-		$stmt = $this->db->prepare("
-			INSERT INTO construction_stages
-			    (name, start_date, end_date, duration, durationUnit, color, externalId, status)
-			    VALUES (:name, :start_date, :end_date, :duration, :durationUnit, :color, :externalId, :status)
+			$stmt = $this->db->prepare("
+				INSERT INTO construction_stages (
+					name, start_date, end_date, duration, durationUnit,
+					color, externalId, status
+				) VALUES (
+					:name, :startDate, :endDate, :duration, :durationUnit,
+					:color, :externalId, :status
+				)
 			");
-		$stmt->execute([
-			'name' => $data->name,
-			'start_date' => $data->startDate,
-			'end_date' => $data->endDate,
-			'duration' => $data->duration,
-			'durationUnit' => $data->durationUnit,
-			'color' => $data->color,
-			'externalId' => $data->externalId,
-			'status' => $data->status,
-		]);
-		return $this->getSingle($this->db->lastInsertId());
+
+			$params = [
+				'name' => $stageData['name'],
+				'startDate' => $stageData['startDate'],
+				'endDate' => $stageData['endDate'],
+				'duration' => $stageData['duration'] ?? null,
+				'durationUnit' => $stageData['durationUnit'],
+				'color' => $stageData['color'],
+				'externalId' => $stageData['externalId'],
+				'status' => $stageData['status']
+			];
+
+			$stmt->execute($params);
+			$id = $this->db->lastInsertId();
+
+			return $this->getSingle($id);
+		} catch (Exception $e) {
+			throw new Exception('Failed to create construction stage: ' . $e->getMessage());
+		}
 	}
 
-	public function update(ConstructionStagesUpdate $data, int $id): array
+	/**
+	 * Update a construction stage
+	 * @param int $id
+	 * @param ConstructionStagesUpdate $data
+	 * @return array
+	 */
+	public function update(int $id, ConstructionStagesUpdate $data): array
 	{
-		$constructionStage = $this->getSingle($id);
+		try {
+			// Check if stage exists
+			$this->getSingle($id);
 
-		if (!$constructionStage) {
-			return ['error' => ['code' => 404, 'message' => 'Record not found']];
+			$errors = $data->validateData();
+			if (!empty($errors)) {
+				return [
+					'error' => [
+						'code' => 400,
+						'message' => 'Validation failed',
+						'errors' => $errors
+					]
+				];
+			}
+
+			$stageData = $data->toArray();
+			$duration = $data->calculateDuration();
+			if ($duration !== null) {
+				$stageData['duration'] = $duration;
+			}
+
+			$updates = [];
+			$params = ['id' => $id];
+
+			foreach ($stageData as $key => $value) {
+				if ($value !== null) {
+					$dbKey = $key === 'startDate' ? 'start_date' : ($key === 'endDate' ? 'end_date' : $key);
+					$updates[] = "$dbKey = :$key";
+					$params[$key] = $value;
+				}
+			}
+
+			if (empty($updates)) {
+				return $this->getSingle($id);
+			}
+
+			$stmt = $this->db->prepare('
+				UPDATE construction_stages
+				SET ' . implode(', ', $updates) . '
+				WHERE id = :id
+			');
+
+			$stageData['id'] = $id;
+			$stmt->execute($stageData);
+
+			return $this->getSingle($id);
+		} catch (Exception $e) {
+			throw new Exception('Failed to update construction stage: ' . $e->getMessage());
 		}
-
-		$errorMsg = $data->validateData($data);
-		if ($errorMsg) {
-			return $errorMsg;
-		}
-
-		$startDate = $data->startDate ?? $constructionStage[0]['startDate'];
-		$endDate = $data->endDate ?? $constructionStage[0]['endDate'];
-
-		if ($startDate && $endDate && $endDate < $startDate) {
-			return ['error' => ['code' => 422, 'message' => 'End date must be after start date']];
-		}
-
-		$stmt = $this->db->prepare("
-        UPDATE construction_stages
-        SET
-            name = :name,
-            start_date = :start_date,
-            end_date = :end_date,
-            duration = :duration,
-            durationUnit = :durationUnit,
-            color = :color,
-            externalId = :externalId,
-            status = :status
-        WHERE ID = :id
-    ");
-
-		$stmt->execute([
-			'id' => $id,
-			'name' => $data->name ?? $constructionStage[0]['name'],
-			'start_date' => $startDate,
-			'end_date' => $endDate,
-			'duration' => $data->calculateDuration($startDate, $endDate),
-			'durationUnit' => $data->durationUnit,
-			'color' => $data->color,
-			'externalId' => $data->externalId,
-			'status' => $data->status,
-		]);
-
-		return $this->getSingle($id);
 	}
 
+	/**
+	 * Delete a construction stage (soft delete)
+	 * @param int $id
+	 * @return array
+	 */
 	public function delete(int $id): array
 	{
-		$stmt = $this->db->prepare("
-			UPDATE construction_stages
-			SET
-				status = 'DELETED'
-			WHERE ID = :id
-		");
+		try {
+			// Check if stage exists
+			$this->getSingle($id);
 
-		$stmt->execute([
-			'id' => $id
-		]);
+			$stmt = $this->db->prepare('
+				UPDATE construction_stages
+				SET status = "DELETED"
+				WHERE id = ?
+			');
 
-		return ['success' => ['code' => 204, 'message' => 'Record deleted successfully']];
+			$stmt->execute([$id]);
+
+			return [
+				'success' => [
+					'code' => 200,
+					'message' => 'Construction stage deleted successfully'
+				]
+			];
+		} catch (Exception $e) {
+			throw new Exception('Failed to delete construction stage: ' . $e->getMessage());
+		}
 	}
 }

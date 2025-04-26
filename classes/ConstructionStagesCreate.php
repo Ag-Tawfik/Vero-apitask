@@ -1,91 +1,131 @@
 <?php
 
+/**
+ * Class ConstructionStagesCreate
+ * Handles the creation of new construction stages with validation
+ */
 class ConstructionStagesCreate
 {
-	public $name;
-	public $startDate;
-	public $endDate = null;
-	public $duration;
-	public $durationUnit = 'DAYS';
-	public $color = null;
-	public $externalId = null;
-	public $status = 'NEW';
+	private const ALLOWED_STATUSES = ['NEW', 'PLANNED', 'DELETED'];
+	private const ALLOWED_DURATION_UNITS = ['HOURS', 'DAYS', 'WEEKS'];
 
-	public function __construct($data)
+	private string $name;
+	private string $startDate;
+	private ?string $endDate = null;
+	private ?string $durationUnit = null;
+	private ?string $color = null;
+	private ?string $externalId = null;
+	private string $status = 'NEW';
+
+	/**
+	 * Constructor
+	 * @param object $data The data to create a construction stage
+	 */
+	public function __construct(object $data)
 	{
-		if (is_object($data)) {
-
-			$vars = get_object_vars($this);
-
-			foreach ($vars as $name => $value) {
-
-				if (isset($data->$name)) {
-
-					$this->$name = $data->$name;
-				}
-			}
-		}
+		$this->name = $data->name ?? '';
+		$this->startDate = $data->startDate ?? '';
+		$this->endDate = $data->endDate ?? null;
+		$this->durationUnit = $data->durationUnit ?? null;
+		$this->color = $data->color ?? null;
+		$this->externalId = $data->externalId ?? null;
+		$this->status = $data->status ?? 'NEW';
 	}
 
+	/**
+	 * Validate the construction stage data
+	 * @return array Array of validation errors, empty if valid
+	 */
 	public function validateData(): array
 	{
 		$errors = [];
 
+		// Validate name
 		if (empty($this->name)) {
-			$errors[] = ['error' => ['code' => 422, 'message' => 'Name is required']];
+			$errors[] = 'Name is required';
 		} elseif (strlen($this->name) > 255) {
-			$errors[] = ['error' => ['code' => 422, 'message' => 'Name is too long, maximum 255 chars']];
+			$errors[] = 'Name must not exceed 255 characters';
 		}
 
+		// Validate start date
 		if (empty($this->startDate)) {
-			$errors[] = ['error' => ['code' => 422, 'message' => 'Start date is required']];
+			$errors[] = 'Start date is required';
 		} else {
-			$startDate = \DateTime::createFromFormat(\DateTime::ATOM, $this->startDate);
+			$startDate = DateTime::createFromFormat('Y-m-d\TH:i:s\Z', $this->startDate);
 			if (!$startDate) {
-				$errors[] = ['error' => ['code' => 422, 'message' => 'Start date is not in the correct format']];
+				$errors[] = 'Start date must be in ISO 8601 format (YYYY-MM-DDThh:mm:ssZ)';
 			}
 		}
 
-		if ($this->endDate) {
-			$endDate = \DateTime::createFromFormat(\DateTime::ATOM, $this->endDate);
+		// Validate end date if provided
+		if (!empty($this->endDate)) {
+			$endDate = DateTime::createFromFormat('Y-m-d\TH:i:s\Z', $this->endDate);
 			if (!$endDate) {
-				$errors[] = ['error' => ['code' => 422, 'message' => 'End date is not in the correct format']];
-			} elseif ($endDate < \DateTime::createFromFormat(\DateTime::ATOM, $this->startDate)) {
-				$errors[] = ['error' => ['code' => 422, 'message' => 'End date must be after start date']];
+				$errors[] = 'End date must be in ISO 8601 format (YYYY-MM-DDThh:mm:ssZ)';
+			} elseif (isset($startDate) && $endDate < $startDate) {
+				$errors[] = 'End date must be after start date';
 			}
 		}
 
-		if ($startDate && $endDate && $endDate !== null) {
-			$diff = $startDate->diff($endDate);
-			switch ($this->durationUnit) {
-				case 'HOURS':
-					$this->duration = $diff->h + ($diff->days * 24);
-					break;
-				case 'DAYS':
-					$this->duration = $diff->days;
-					break;
-				case 'WEEKS':
-					$this->duration = round($diff->days / 7);
-					break;
-			}
+		// Validate duration unit
+		if (!empty($this->durationUnit) && !in_array($this->durationUnit, self::ALLOWED_DURATION_UNITS)) {
+			$errors[] = 'Duration unit must be one of: ' . implode(', ', self::ALLOWED_DURATION_UNITS);
 		}
 
-		if ($this->durationUnit && !in_array($this->durationUnit, ['HOURS', 'DAYS', 'WEEKS'])) {
-			$errors[] = ['error' => ['code' => 422, 'message' => 'Duration unit is not valid']];
+		// Validate color
+		if (!empty($this->color) && !preg_match('/^#([a-f0-9]{3}){1,2}$/i', $this->color)) {
+			$errors[] = 'Color must be a valid hex color code (e.g., #FF0000 or #F00)';
 		}
 
-		if ($this->color && !preg_match('/^#([a-f0-9]{3}){1,2}$/i', $this->color)) {
-			$errors[] = ['error' => ['code' => 422, 'message' => 'Color is not valid HEX color']];
+		// Validate external ID
+		if (!empty($this->externalId) && strlen($this->externalId) > 255) {
+			$errors[] = 'External ID must not exceed 255 characters';
 		}
 
-		if ($this->externalId && strlen($this->externalId) > 255) {
-			$errors[] = ['error' => ['code' => 422, 'message' => 'External ID is too long, maximum 255 chars']];
-		}
-
-		if ($this->status && !in_array($this->status, ['NEW', 'PLANNED', 'DELETED'])) {
-			$errors[] = ['error' => ['code' => 422, 'message' => 'Status is not valid']];
+		// Validate status
+		if (!in_array($this->status, self::ALLOWED_STATUSES)) {
+			$errors[] = 'Status must be one of: ' . implode(', ', self::ALLOWED_STATUSES);
 		}
 
 		return $errors;
+	}
+
+	/**
+	 * Get the construction stage data as an array
+	 * @return array
+	 */
+	public function toArray(): array
+	{
+		return [
+			'name' => $this->name,
+			'startDate' => $this->startDate,
+			'endDate' => $this->endDate,
+			'durationUnit' => $this->durationUnit,
+			'color' => $this->color,
+			'externalId' => $this->externalId,
+			'status' => $this->status
+		];
+	}
+
+	/**
+	 * Calculate duration based on start and end dates
+	 * @return float|null
+	 */
+	public function calculateDuration(): ?float
+	{
+		if (empty($this->startDate) || empty($this->endDate) || empty($this->durationUnit)) {
+			return null;
+		}
+
+		$start = new DateTime($this->startDate);
+		$end = new DateTime($this->endDate);
+		$diff = $start->diff($end);
+
+		return match ($this->durationUnit) {
+			'HOURS' => $diff->days * 24 + $diff->h + $diff->i / 60,
+			'DAYS' => $diff->days + $diff->h / 24,
+			'WEEKS' => ($diff->days + $diff->h / 24) / 7,
+			default => null
+		};
 	}
 }
