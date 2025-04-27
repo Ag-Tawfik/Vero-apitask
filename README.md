@@ -1,13 +1,3 @@
-Hello dear API creator!
-
-This repository is a playground for your submission.
-
-Before getting started, please hit the `Use this template button` to create a new repository on which you commit and push your code regularly for your task. Once you are done, please mail us the link to your repository.
-
-If you encounter a problem or have questions about the task, feel free to email us under christian.schaefers@vero.de
-
-Good luck and have fun ☘️
-
 ## Prerequisites:
 The already built up code frame in this repo is a very basic API with limited functionality. Your task is to pick it up and develop new features on top of it.
 
