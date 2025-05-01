@@ -7,7 +7,7 @@ Autoloader::register();
  */
 class Api
 {
-	private static $db;
+	private static ?PDO $db = null;
 	private const ALLOWED_METHODS = ['GET', 'POST', 'PATCH', 'DELETE'];
 	private const JSON_OPTIONS = JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT;
 	private const CACHE_DIR = __DIR__ . '/cache';
@@ -22,6 +22,9 @@ class Api
 	 */
 	public static function getDb(): PDO
 	{
+		if (self::$db === null) {
+			self::$db = (new Database())->init();
+		}
 		return self::$db;
 	}
 
@@ -32,7 +35,7 @@ class Api
 	{
 		$this->setSecurityHeaders();
 		$this->initializeCache();
-		self::$db = (new Database())->init();
+		$this->initializeRoutes();
 
 		// Get the request URI and method
 		$requestUri = $_SERVER['REQUEST_URI'] ?? '/';
@@ -49,7 +52,6 @@ class Api
 			return;
 		}
 
-		$this->initializeRoutes();
 		$this->handleRequest($path, $httpVerb);
 	}
 
@@ -203,17 +205,17 @@ class Api
 	 */
 	private function handleRequest(string $path, string $httpVerb): void
 	{
-		if ($path === 'swagger.json') {
-			$this->sendSwaggerDocumentation();
-			return;
-		}
-
-		if (empty($path)) {
-			$this->sendResponse($this->getWelcomeMessage());
-			return;
-		}
-
 		try {
+			if ($path === '') {
+				$this->sendResponse($this->getWelcomeMessage());
+				return;
+			}
+
+			if ($path === 'swagger.json') {
+				$this->sendSwaggerDocumentation();
+				return;
+			}
+
 			$route = $this->findRoute($path, $httpVerb);
 			if (!$route) {
 				$this->sendResponse(['error' => ['code' => 404, 'message' => 'Route not found']], 404);
@@ -223,13 +225,8 @@ class Api
 			$response = $this->executeRoute($route, $path, $httpVerb);
 			$this->sendResponse($response);
 		} catch (Exception $e) {
-			$this->sendResponse([
-				'error' => [
-					'code' => 500,
-					'message' => $e->getMessage(),
-					'trace' => $e->getTraceAsString()
-				]
-			], 500);
+			$code = $e->getCode() ?: 500;
+			$this->sendResponse(['error' => ['code' => $code, 'message' => $e->getMessage()]], $code);
 		}
 	}
 
@@ -241,20 +238,11 @@ class Api
 	 */
 	private function findRoute(string $path, string $httpVerb): ?array
 	{
-		$wildcards = [
-			':any' => '[^/]+',
-			':num' => '[0-9]+',
-			':alpha' => '[a-zA-Z]+',
-			':alnum' => '[a-zA-Z0-9]+'
-		];
-
 		foreach ($this->routes as $pattern => $route) {
-			$pattern = str_replace(array_keys($wildcards), array_values($wildcards), $pattern);
 			if (preg_match('#^'.$pattern.'$#i', "{$httpVerb} {$path}", $matches)) {
 				return array_merge($route, ['matches' => $matches]);
 			}
 		}
-
 		return null;
 	}
 
@@ -264,92 +252,81 @@ class Api
 	 * @param string $path
 	 * @param string $httpVerb
 	 * @return array
-	 * @throws Exception
 	 */
 	private function executeRoute(array $route, string $path, string $httpVerb): array
 	{
-		$params = [];
+		$class = $route['class'];
+		$method = $route['method'];
 		$matches = $route['matches'];
 		array_shift($matches);
 
-		switch ($httpVerb) {
-			case 'GET':
-				if (!empty($matches)) {
-					$params = [(int)$matches[0]];
-				}
-				break;
-			case 'POST':
-				$data = $this->getRequestBody();
-				$params = [new $route['bodyType']($data)];
-				break;
-			case 'PATCH':
-				$data = $this->getRequestBody();
-				$params = [(int)$matches[0], new $route['bodyType']($data)];
-				break;
-			case 'DELETE':
-				$params = [(int)$matches[0]];
-				break;
+		$instance = new $class(self::getDb());
+		$params = [];
+
+		if (!empty($matches)) {
+			$params = [(int)$matches[0]];
 		}
 
-		return call_user_func_array([new $route['class'], $route['method']], $params);
+		if (in_array($httpVerb, ['POST', 'PATCH'])) {
+			$data = $this->getRequestBody();
+			if (isset($route['bodyType'])) {
+				$bodyType = $route['bodyType'];
+				$data = $bodyType::fromObject($data);
+			}
+			$params[] = $data;
+		}
+
+		return $instance->$method(...$params);
 	}
 
 	/**
-	 * Get the welcome message for the root path
+	 * Get the welcome message
 	 * @return array
 	 */
 	private function getWelcomeMessage(): array
 	{
-		$endpoints = [];
-		foreach ($this->routes as $pattern => $route) {
-			$method = strtoupper(explode(' ', $pattern)[0]);
-			$path = '/constructionStages' . (strpos($pattern, '(:num)') !== false ? '/{id}' : '');
-			$endpoints[$method . ' ' . $path] = $route['description'];
-		}
-
 		return [
 			'message' => 'Welcome to the Construction Stages API',
-			'version' => '1.0.0',
-			'endpoints' => $endpoints,
-			'documentation' => 'See docs/api.md for detailed API documentation',
-			'swagger' => 'See /swagger.json for OpenAPI/Swagger documentation'
+			'documentation' => '/swagger.json',
+			'endpoints' => array_map(
+				fn($route) => $route['description'],
+				$this->routes
+			)
 		];
 	}
 
 	/**
-	 * Set security headers for the API
+	 * Set security headers
 	 */
 	private function setSecurityHeaders(): void
 	{
-		header('Content-Type: application/json; charset=utf-8');
+		header('Content-Type: application/json; charset=UTF-8');
 		header('X-Content-Type-Options: nosniff');
 		header('X-Frame-Options: DENY');
 		header('X-XSS-Protection: 1; mode=block');
-		header('Strict-Transport-Security: max-age=31536000; includeSubDomains');
 	}
 
 	/**
-	 * Get and validate the request body
+	 * Get the request body
 	 * @return object
-	 * @throws Exception
 	 */
 	private function getRequestBody(): object
 	{
-		$input = file_get_contents('php://input');
-		if (empty($input)) {
-			throw new Exception('Request body is empty');
+		$json = file_get_contents('php://input');
+		if (empty($json)) {
+			return (object)[];
 		}
 
-		$data = json_decode($input);
+		$data = json_decode($json);
 		if (json_last_error() !== JSON_ERROR_NONE) {
-			throw new Exception('Invalid JSON in request body');
+			throw new Exception('Invalid JSON in request body', 400);
 		}
 
 		return $data;
 	}
 
 	/**
-	 * Send the response with appropriate HTTP status code
+	 * Send the response
 	 * @param array $response
 	 * @param int $statusCode
 	 */
@@ -360,7 +337,7 @@ class Api
 	}
 
 	/**
-	 * Get all registered routes
+	 * Get all routes
 	 * @return array
 	 */
 	public function getRoutes(): array
@@ -373,118 +350,10 @@ class Api
 	 */
 	private function sendSwaggerDocumentation(): void
 	{
-		$generator = new SwaggerGenerator([
-			'get constructionStages' => [
-				'class' => 'ConstructionStages',
-				'method' => 'getAll',
-				'description' => 'Get all construction stages',
-				'parameters' => [],
-				'response' => [
-					'type' => 'array',
-					'items' => [
-						'type' => 'object',
-						'properties' => [
-							'id' => ['type' => 'integer'],
-							'name' => ['type' => 'string'],
-							'startDate' => ['type' => 'string', 'format' => 'date-time'],
-							'endDate' => ['type' => 'string', 'format' => 'date-time'],
-							'duration' => ['type' => 'number'],
-							'durationUnit' => ['type' => 'string', 'enum' => ['HOURS', 'DAYS', 'WEEKS']],
-							'color' => ['type' => 'string', 'pattern' => '^#([a-f0-9]{3}){1,2}$'],
-							'externalId' => ['type' => 'string'],
-							'status' => ['type' => 'string', 'enum' => ['NEW', 'PLANNED', 'DELETED']]
-						]
-					]
-				]
-			],
-			'get constructionStages/(:num)' => [
-				'class' => 'ConstructionStages',
-				'method' => 'getSingle',
-				'description' => 'Get a specific construction stage',
-				'parameters' => [
-					'id' => ['type' => 'integer', 'description' => 'The ID of the construction stage']
-				],
-				'response' => [
-					'type' => 'object',
-					'properties' => [
-						'id' => ['type' => 'integer'],
-						'name' => ['type' => 'string'],
-						'startDate' => ['type' => 'string', 'format' => 'date-time'],
-						'endDate' => ['type' => 'string', 'format' => 'date-time'],
-						'duration' => ['type' => 'number'],
-						'durationUnit' => ['type' => 'string', 'enum' => ['HOURS', 'DAYS', 'WEEKS']],
-						'color' => ['type' => 'string', 'pattern' => '^#([a-f0-9]{3}){1,2}$'],
-						'externalId' => ['type' => 'string'],
-						'status' => ['type' => 'string', 'enum' => ['NEW', 'PLANNED', 'DELETED']]
-					]
-				]
-			],
-			'post constructionStages' => [
-				'class' => 'ConstructionStages',
-				'method' => 'post',
-				'bodyType' => 'ConstructionStagesCreate',
-				'description' => 'Create a new construction stage',
-				'request' => [
-					'type' => 'object',
-					'required' => ['name', 'startDate'],
-					'properties' => [
-						'name' => ['type' => 'string', 'maxLength' => 255],
-						'startDate' => ['type' => 'string', 'format' => 'date-time'],
-						'endDate' => ['type' => 'string', 'format' => 'date-time'],
-						'durationUnit' => ['type' => 'string', 'enum' => ['HOURS', 'DAYS', 'WEEKS']],
-						'color' => ['type' => 'string', 'pattern' => '^#([a-f0-9]{3}){1,2}$'],
-						'externalId' => ['type' => 'string', 'maxLength' => 255],
-						'status' => ['type' => 'string', 'enum' => ['NEW', 'PLANNED', 'DELETED']]
-					]
-				]
-			],
-			'patch constructionStages/(:num)' => [
-				'class' => 'ConstructionStages',
-				'method' => 'update',
-				'bodyType' => 'ConstructionStagesUpdate',
-				'description' => 'Update a construction stage',
-				'parameters' => [
-					'id' => ['type' => 'integer', 'description' => 'The ID of the construction stage']
-				],
-				'request' => [
-					'type' => 'object',
-					'properties' => [
-						'name' => ['type' => 'string', 'maxLength' => 255],
-						'startDate' => ['type' => 'string', 'format' => 'date-time'],
-						'endDate' => ['type' => 'string', 'format' => 'date-time'],
-						'durationUnit' => ['type' => 'string', 'enum' => ['HOURS', 'DAYS', 'WEEKS']],
-						'color' => ['type' => 'string', 'pattern' => '^#([a-f0-9]{3}){1,2}$'],
-						'externalId' => ['type' => 'string', 'maxLength' => 255],
-						'status' => ['type' => 'string', 'enum' => ['NEW', 'PLANNED', 'DELETED']]
-					]
-				]
-			],
-			'delete constructionStages/(:num)' => [
-				'class' => 'ConstructionStages',
-				'method' => 'delete',
-				'description' => 'Delete a construction stage',
-				'parameters' => [
-					'id' => ['type' => 'integer', 'description' => 'The ID of the construction stage']
-				],
-				'response' => [
-					'type' => 'object',
-					'properties' => [
-						'success' => [
-							'type' => 'object',
-							'properties' => [
-								'code' => ['type' => 'integer'],
-								'message' => ['type' => 'string']
-							]
-						]
-					]
-				]
-			]
-		]);
-		$swagger = $generator->generate();
-		
-		header('Content-Type: application/json');
-		echo json_encode($swagger, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+		$generator = new SwaggerGenerator($this->routes);
+		$this->sendResponse($generator->generate());
 	}
 }
 
+// Initialize the API
 new Api();
