@@ -1,35 +1,47 @@
 <?php
 
+enum DurationUnit: string {
+	case HOURS = 'HOURS';
+	case DAYS = 'DAYS';
+	case WEEKS = 'WEEKS';
+}
+
+enum Status: string {
+	case NEW = 'NEW';
+	case PLANNED = 'PLANNED';
+	case DELETED = 'DELETED';
+}
+
 /**
  * Class ConstructionStagesCreate
  * Handles the creation of new construction stages with validation
  */
 class ConstructionStagesCreate
 {
-	private const ALLOWED_STATUSES = ['NEW', 'PLANNED', 'DELETED'];
-	private const ALLOWED_DURATION_UNITS = ['HOURS', 'DAYS', 'WEEKS'];
-
-	private string $name;
-	private string $startDate;
-	private ?string $endDate = null;
-	private ?string $durationUnit = null;
-	private ?string $color = null;
-	private ?string $externalId = null;
-	private string $status = 'NEW';
+	public function __construct(
+		private readonly string $name,
+		private readonly string $startDate,
+		private readonly ?string $endDate = null,
+		private readonly ?DurationUnit $durationUnit = null,
+		private readonly ?string $color = null,
+		private readonly ?string $externalId = null,
+		private readonly Status $status = Status::NEW,
+	) {}
 
 	/**
-	 * Constructor
-	 * @param object $data The data to create a construction stage
+	 * Create instance from raw data object
 	 */
-	public function __construct(object $data)
+	public static function fromObject(object $data): self
 	{
-		$this->name = $data->name ?? '';
-		$this->startDate = $data->startDate ?? '';
-		$this->endDate = $data->endDate ?? null;
-		$this->durationUnit = $data->durationUnit ?? null;
-		$this->color = $data->color ?? null;
-		$this->externalId = $data->externalId ?? null;
-		$this->status = $data->status ?? 'NEW';
+		return new self(
+			name: $data->name ?? '',
+			startDate: $data->startDate ?? '',
+			endDate: $data->endDate ?? null,
+			durationUnit: isset($data->durationUnit) ? DurationUnit::from($data->durationUnit) : null,
+			color: $data->color ?? null,
+			externalId: $data->externalId ?? null,
+			status: isset($data->status) ? Status::from($data->status) : Status::NEW
+		);
 	}
 
 	/**
@@ -67,11 +79,6 @@ class ConstructionStagesCreate
 			}
 		}
 
-		// Validate duration unit
-		if (!empty($this->durationUnit) && !in_array($this->durationUnit, self::ALLOWED_DURATION_UNITS)) {
-			$errors[] = 'Duration unit must be one of: ' . implode(', ', self::ALLOWED_DURATION_UNITS);
-		}
-
 		// Validate color
 		if (!empty($this->color) && !preg_match('/^#([a-f0-9]{3}){1,2}$/i', $this->color)) {
 			$errors[] = 'Color must be a valid hex color code (e.g., #FF0000 or #F00)';
@@ -80,11 +87,6 @@ class ConstructionStagesCreate
 		// Validate external ID
 		if (!empty($this->externalId) && strlen($this->externalId) > 255) {
 			$errors[] = 'External ID must not exceed 255 characters';
-		}
-
-		// Validate status
-		if (!in_array($this->status, self::ALLOWED_STATUSES)) {
-			$errors[] = 'Status must be one of: ' . implode(', ', self::ALLOWED_STATUSES);
 		}
 
 		return $errors;
@@ -100,10 +102,10 @@ class ConstructionStagesCreate
 			'name' => $this->name,
 			'startDate' => $this->startDate,
 			'endDate' => $this->endDate,
-			'durationUnit' => $this->durationUnit,
+			'durationUnit' => $this->durationUnit?->value,
 			'color' => $this->color,
 			'externalId' => $this->externalId,
-			'status' => $this->status
+			'status' => $this->status->value
 		];
 	}
 
@@ -113,7 +115,7 @@ class ConstructionStagesCreate
 	 */
 	public function calculateDuration(): ?float
 	{
-		if (empty($this->startDate) || empty($this->endDate) || empty($this->durationUnit)) {
+		if (empty($this->startDate) || empty($this->endDate) || !$this->durationUnit) {
 			return null;
 		}
 
@@ -122,10 +124,9 @@ class ConstructionStagesCreate
 		$diff = $start->diff($end);
 
 		return match ($this->durationUnit) {
-			'HOURS' => $diff->days * 24 + $diff->h + $diff->i / 60,
-			'DAYS' => $diff->days + $diff->h / 24,
-			'WEEKS' => ($diff->days + $diff->h / 24) / 7,
-			default => null
+			DurationUnit::HOURS => $diff->days * 24 + $diff->h + $diff->i / 60,
+			DurationUnit::DAYS => $diff->days + $diff->h / 24,
+			DurationUnit::WEEKS => ($diff->days + $diff->h / 24) / 7,
 		};
 	}
 }
