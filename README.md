@@ -1,29 +1,45 @@
-## Prerequisites:
-The already built up code frame in this repo is a very basic API with limited functionality. Your task is to pick it up and develop new features on top of it.
+# Construction Stages API
 
-You can change existing code structure however you can't add any external frameworks and third party classes.
+A modern, lightweight RESTful API for managing construction project stages. Built with PHP 8.4.6, this API leverages the latest PHP features to provide a robust solution for tracking and managing construction project timelines.
 
-There is an SQLite database (`testDb.db`) which is created and filled on the fly.
+## Key Features
 
-There is a basic routing in `index.php` which supports `GET` and `POST` calls in particular:
-- `GET constructionStages`
-- `GET constructionStages/{id}`
-- `POST constructionStages`
+- **RESTful Endpoints**: Full CRUD operations for construction stages
+- **Smart Duration Calculation**: Automatic calculation of stage durations in hours, days, or weeks
+- **Modern PHP Features**:
+  - Enums for type-safe status and duration units
+  - Constructor property promotion
+  - Readonly properties
+  - Match expressions
+  - Nullsafe operator
+  - Union types
+  - Named arguments
+- **Validation System**: Comprehensive validation for all stage properties
+- **Soft Delete**: Safe deletion with status tracking
+- **API Documentation**: Auto-generated Swagger/OpenAPI documentation
+- **Security**: Built-in security headers and input validation
+- **Performance**: Route caching and optimized database queries
 
-The API serves data and accepts payload only in JSON format.
+## Technical Stack
 
-## Running the Project
+- PHP 8.4.6
+- SQLite Database
+- PDO for database operations
+- JSON request/response handling
+- No external frameworks or dependencies
 
-### Requirements
-- PHP 7.4 or higher
+## Requirements
+
+- PHP 8.4.6 or higher
 - SQLite extension for PHP
 - JSON extension for PHP
 
-### Setup
+## Installation
+
 1. Clone the repository:
    ```bash
-   git clone <repository-url>
-   cd <repository-name>
+   git clone https://github.com/yourusername/construction-stages-api.git
+   cd construction-stages-api
    ```
 
 2. Run the setup script to initialize the database and generate documentation:
@@ -38,101 +54,116 @@ The API serves data and accepts payload only in JSON format.
 
 4. The API will be available at `http://localhost:8000`
 
-### Testing the API
-You can test the API using curl or any API client like Postman. Here are some example requests:
+## API Endpoints
 
-1. Get all construction stages:
-   ```bash
-   curl http://localhost:8000/constructionStages
-   ```
+### Get All Construction Stages
+```bash
+GET http://localhost:8000/constructionStages
+```
 
-2. Get a specific construction stage:
-   ```bash
-   curl http://localhost:8000/constructionStages/1
-   ```
+### Get Specific Construction Stage
+```bash
+GET http://localhost:8000/constructionStages/{id}
+```
 
-3. Create a new construction stage:
-   ```bash
-   curl -X POST http://localhost:8000/constructionStages \
-     -H "Content-Type: application/json" \
-     -d '{
-       "name": "Test Stage",
-       "startDate": "2024-01-01T00:00:00Z",
-       "endDate": "2024-01-31T00:00:00Z",
-       "durationUnit": "DAYS",
-       "color": "#FF0000",
-       "externalId": "TEST123",
-       "status": "NEW"
-     }'
-   ```
+### Create New Construction Stage
+```bash
+POST http://localhost:8000/constructionStages
+Content-Type: application/json
 
-4. Update a construction stage:
-   ```bash
-   curl -X PATCH http://localhost:8000/constructionStages/1 \
-     -H "Content-Type: application/json" \
-     -d '{
-       "name": "Updated Stage",
-       "status": "PLANNED"
-     }'
-   ```
+{
+    "name": "Foundation Work",
+    "startDate": "2024-01-01T00:00:00Z",
+    "endDate": "2024-01-31T00:00:00Z",
+    "durationUnit": "DAYS",
+    "color": "#FF0000",
+    "externalId": "FOUND-001",
+    "status": "NEW"
+}
+```
 
-5. Delete a construction stage:
-   ```bash
-   curl -X DELETE http://localhost:8000/constructionStages/1
-   ```
+### Update Construction Stage
+```bash
+PATCH http://localhost:8000/constructionStages/{id}
+Content-Type: application/json
 
-### API Documentation
-The API documentation is automatically generated in `docs/api.md`. You can view it using any markdown viewer or convert it to HTML.
+{
+    "name": "Updated Stage Name",
+    "status": "PLANNED"
+}
+```
 
-To regenerate the documentation:
+### Delete Construction Stage
+```bash
+DELETE http://localhost:8000/constructionStages/{id}
+```
+
+## Data Model
+
+Each construction stage includes:
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| name | string | Yes | Stage name (max 255 chars) |
+| startDate | string | Yes | ISO 8601 format |
+| endDate | string | No | ISO 8601 format |
+| duration | float | Auto | Calculated based on dates |
+| durationUnit | enum | No | HOURS, DAYS, or WEEKS |
+| color | string | No | HEX color code |
+| externalId | string | No | External reference ID |
+| status | enum | No | NEW, PLANNED, or DELETED |
+
+## Validation Rules
+
+- `name`: Maximum 255 characters
+- `startDate`: Valid ISO 8601 format
+- `endDate`: Optional, must be after startDate
+- `durationUnit`: One of HOURS, DAYS, WEEKS
+- `color`: Valid HEX color code
+- `externalId`: Maximum 255 characters
+- `status`: One of NEW, PLANNED, DELETED
+
+## Documentation
+
+API documentation is available at:
+- Swagger UI: `http://localhost:8000/swagger.json`
+- Markdown: `docs/api.md`
+
+To regenerate documentation:
 ```bash
 php generate-docs.php
 ```
 
-## Task 1:
-Add a new API call `PATCH constructionStages/{id}` which to allow the API users to edit an arbitrary field of a selected (by id) construction stage. The API should touch only the fields which are sent by the user. Add validation which to ensure that if `status` field is sent it is either `NEW`, `PLANNED` or `DELETED` and throw a proper error if it is not.
+## Development
 
-Add another `DELETE constructionStages/{id}` API call which changes the `status` of the selected resource to `DELETED`.
+### Code Style
+- Follows PSR-12 coding standards
+- Uses PHP 8.4.6 features
+- Includes PHPDoc comments
+- Type declarations for all properties and methods
 
-## Task 2:
-Write a validation system which checks every posted field against a set of rules as follows:
-- `name` is maximum of 255 characters in length
-- `start_date` is a valid date&time in iso8601 format i.e. `2022-12-31T14:59:00Z`
-- `end_date` is either `null` or a valid datetime which is later than the `start_date`
-- `duration` is skipped because it should be automatically calculated based on `start_date`, `end_date` and `durationUnit`
-- `durationUnit` is one of `HOURS`, `DAYS`, `WEEKS` or can be skipped (which fallbacks to default value of `DAYS`)
-- `color` is either `null` or a valid HEX color i.e. `#FF0000`
-- `externalId` is `null` or any string up to 255 characters in length
-- `status` is one of `NEW`, `PLANNED` or `DELETED` and the default value is `NEW`.
-
-You should throw proper errors if a rule is not met.
-
-## Task 3:
-Set a logic which automatically calculates `duration` based on `start_date`, `end_date` and `durationUnit` as you know that:
-- `start_date` is required and is a valid date&time in iso8601 format i.e. `2022-12-31T14:59:00Z`
-- `end_date` is either `null` (then `duration` is also `null`) or a valid datetime which is later than the `start_date`
-- `durationUnit` is one of `HOURS`, `DAYS`, `WEEKS` where `DAYS` is the default fallback.
-- `duration` is a positive float value calculated in precision of whole hours (ignore minutes and seconds if any)
-- a week has 7 days and one day has 24 hours
-
-## Default task:
-Add a nice phpDoc to every method you create!
-
-## Bonus task:
-Add a system which generates a documentation out of your API!
-
-## API Documentation
-The API documentation can be generated using the following command:
+### Testing
 ```bash
-php generate-docs.php
+# Run tests
+php vendor/bin/phpunit
 ```
 
-This will create a markdown file (`docs/api.md`) containing comprehensive documentation of all API endpoints, including:
-- Available endpoints and their methods
-- Request and response formats
-- Validation rules
-- Error responses
-- Usage notes
+## Security
 
-The documentation is automatically generated from the codebase and includes examples of requests and responses.
+- Input validation
+- SQL injection prevention
+- XSS protection
+- CSRF protection
+- Security headers
 
+## License
+
+[Your chosen license]
+
+## Contributing
+
+1. Fork the repository
+2. Create your feature branch
+3. Commit your changes
+4. Push to the branch
+5. Create a Pull Request
