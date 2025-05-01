@@ -6,19 +6,14 @@
  */
 class ConstructionStages
 {
-	private PDO $db;
-
-	/**
-	 * Constructor
-	 */
-	public function __construct()
-	{
-		$this->db = Api::getDb();
-	}
+	public function __construct(
+		private readonly PDO $db
+	) {}
 
 	/**
 	 * Get all construction stages
 	 * @return array
+	 * @throws Exception
 	 */
 	public function getAll(): array
 	{
@@ -39,8 +34,8 @@ class ConstructionStages
 				ORDER BY start_date DESC
 			");
 			return $stmt->fetchAll(PDO::FETCH_ASSOC);
-		} catch (Exception $e) {
-			throw new Exception('Failed to fetch construction stages: ' . $e->getMessage());
+		} catch (PDOException $e) {
+			throw new Exception('Failed to fetch construction stages: ' . $e->getMessage(), 500);
 		}
 	}
 
@@ -48,6 +43,7 @@ class ConstructionStages
 	 * Get a single construction stage by ID
 	 * @param int $id
 	 * @return array
+	 * @throws Exception
 	 */
 	public function getSingle(int $id): array
 	{
@@ -74,8 +70,8 @@ class ConstructionStages
 			}
 
 			return $stage;
-		} catch (Exception $e) {
-			throw new Exception('Failed to fetch construction stage: ' . $e->getMessage());
+		} catch (PDOException $e) {
+			throw new Exception('Failed to fetch construction stage: ' . $e->getMessage(), 500);
 		}
 	}
 
@@ -83,6 +79,7 @@ class ConstructionStages
 	 * Create a new construction stage
 	 * @param ConstructionStagesCreate $data
 	 * @return array
+	 * @throws Exception
 	 */
 	public function post(ConstructionStagesCreate $data): array
 	{
@@ -126,11 +123,11 @@ class ConstructionStages
 			];
 
 			$stmt->execute($params);
-			$id = $this->db->lastInsertId();
+			$id = (int)$this->db->lastInsertId();
 
 			return $this->getSingle($id);
-		} catch (Exception $e) {
-			throw new Exception('Failed to create construction stage: ' . $e->getMessage());
+		} catch (PDOException $e) {
+			throw new Exception('Failed to create construction stage: ' . $e->getMessage(), 500);
 		}
 	}
 
@@ -139,6 +136,7 @@ class ConstructionStages
 	 * @param int $id
 	 * @param ConstructionStagesUpdate $data
 	 * @return array
+	 * @throws Exception
 	 */
 	public function update(int $id, ConstructionStagesUpdate $data): array
 	{
@@ -163,19 +161,23 @@ class ConstructionStages
 				$stageData['duration'] = $duration;
 			}
 
+			if (empty($stageData)) {
+				return $this->getSingle($id);
+			}
+
 			$updates = [];
 			$params = ['id' => $id];
 
 			foreach ($stageData as $key => $value) {
 				if ($value !== null) {
-					$dbKey = $key === 'startDate' ? 'start_date' : ($key === 'endDate' ? 'end_date' : $key);
+					$dbKey = match($key) {
+						'startDate' => 'start_date',
+						'endDate' => 'end_date',
+						default => $key
+					};
 					$updates[] = "$dbKey = :$key";
 					$params[$key] = $value;
 				}
-			}
-
-			if (empty($updates)) {
-				return $this->getSingle($id);
 			}
 
 			$stmt = $this->db->prepare('
@@ -184,12 +186,11 @@ class ConstructionStages
 				WHERE id = :id
 			');
 
-			$stageData['id'] = $id;
-			$stmt->execute($stageData);
+			$stmt->execute($params);
 
 			return $this->getSingle($id);
-		} catch (Exception $e) {
-			throw new Exception('Failed to update construction stage: ' . $e->getMessage());
+		} catch (PDOException $e) {
+			throw new Exception('Failed to update construction stage: ' . $e->getMessage(), 500);
 		}
 	}
 
@@ -197,6 +198,7 @@ class ConstructionStages
 	 * Delete a construction stage (soft delete)
 	 * @param int $id
 	 * @return array
+	 * @throws Exception
 	 */
 	public function delete(int $id): array
 	{
@@ -206,11 +208,14 @@ class ConstructionStages
 
 			$stmt = $this->db->prepare('
 				UPDATE construction_stages
-				SET status = "DELETED"
-				WHERE id = ?
+				SET status = :status
+				WHERE id = :id
 			');
 
-			$stmt->execute([$id]);
+			$stmt->execute([
+				'id' => $id,
+				'status' => Status::DELETED->value
+			]);
 
 			return [
 				'success' => [
@@ -218,8 +223,8 @@ class ConstructionStages
 					'message' => 'Construction stage deleted successfully'
 				]
 			];
-		} catch (Exception $e) {
-			throw new Exception('Failed to delete construction stage: ' . $e->getMessage());
+		} catch (PDOException $e) {
+			throw new Exception('Failed to delete construction stage: ' . $e->getMessage(), 500);
 		}
 	}
 }
